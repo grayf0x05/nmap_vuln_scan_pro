@@ -3,35 +3,63 @@
   - Copyright ©️ 2025
   - Written by: grayf0x    
 
-DESCRIZIONE:
-------------------------------------
+Questo script Python è un tool automatizzato per effettuare scansioni di vulnerabilità su un host di rete usando `nmap` con l’integrazione dei plugin `vulners` e `vulscan`. Ecco una descrizione dettagliata delle sue funzionalità principali:  
 
-Questo script Python è un avanzato scanner di vulnerabilità di rete basato su Nmap, progettato per facilitare l’individuazione di falle di sicurezza nei sistemi target.
-Panoramica:  
-lo script automatizza e integra diversi strumenti e database di vulnerabilità per effettuare una scansione completa dei target di rete attraverso Nmap.  
-Utilizza script NSE (Nmap Scripting Engine) dedicati alle vulnerabilità, in particolare Vulscan e Vulners, permettendo di recuperare informazioni dettagliate su CVE (Common Vulnerabilities and Exposures) per i servizi esposti.  
-Funzionalità principali:  
-	•	Controllo e installazione delle dipendenze: verifica che strumenti essenziali come `nmap`, `git`, `python3`, `curl` e `wget` siano presenti, e se mancano li installa automaticamente in base al sistema operativo.  
-	•	Aggiornamento database vulnerabilità:  
-	•	Clona o aggiorna localmente Vulscan, un insieme di database CSV che contiene informazioni sulle vulnerabilità.  
-	•	Clona o aggiorna nmap-vulners, un plugin che interroga la piattaforma Vulners per informazioni sulle vulnerabilità più aggiornate.  
-	•	Aggiorna gli script di Nmap per garantirne la completezza e la presenza delle ultime query e check di sicurezza.  
-	•	Scansione flessibile con profili:  l’utente può scegliere uno tra quattro profili di scansione (Base, Intermedio, Avanzato, Full Audit) che determinano l’estensione, la profondità e la durata della scansione (ad esempio: numero di porte, tipi di script, velocità).  
-	•	Esecuzione della scansione:  
- Lo script costruisce dinamicamente il comando Nmap con gli script di vulnerabilità, fa partire la scansione e mostra una barra di progresso animata in console con tempo trascorso.  
-	•	Generazione di report HTML interattivi: dopo la scansione, lo script analizza il file XML prodotto da Nmap, estrae informazioni su porte, servizi e vulnerabilità trovate.   categorizzandole per severità (Critical, High, Medium, Low, Info). Il report HTML contiene:  
-	•	Dashboard riassuntiva  
-	•	Filtri interattivi per host e severità  
-	•	Grafici a torta e a barre per distribuzione e dettaglio vulnerabilità per host  
-	•	Tabelle dettagliate con output degli script e link diretti ai database NVD per ogni CVE  
- Vantaggi e utilizzo:  
-	•	Automazione completa: aggiornamento automatico di tool e database permette di avere dati sempre aggiornati senza intervento manuale continuo.  
-	•	Multi-profilo: consente dall’analisi rapida a scansioni molto approfondite ed esaustive.  
-	•	Report ricchi e navigabili: i risultati sono facilmente interpretabili grazie a una buona interfaccia HTML dinamica con grafici e filtri.  
-	•	Adatto sia a tester di sicurezza esperti che a chi vuole un primo screening approfondito delle vulnerabilità di rete.  
-Tecnologie sottostanti:  
-	•	Nmap e Nmap Scripting Engine (NSE) per scansione e scripting di vulnerability checks.  
-	•	Vulscan e Vulners per database CVE e exploit.  
-	•	Python per orchestrare la scansione, aggiornamenti e generazione report.  
-	•	Chart.js per visualizzazioni interattive nel report finale.  
-In sintesi, questo script è un tool professionale che sfrutta la potenza e la versatilità di Nmap estendendola con database di vulnerabilità e generazione di report interattivi, ideale per attività di security assessment e penetration testing più o meno automatizzate e personalizzate.  
+***  
+
+### Descrizione generale dello script  
+
+1. **Controllo privilegi**    
+   Lo script verifica di essere eseguito con privilegi di root, necessari per alcune funzionalità di `nmap`.  
+
+2. **Verifica e installazione dipendenze**    
+   Controlla la presenza dei tool necessari (`nmap`, `git`, `python3`, `curl`, `wget`) e, se mancanti, tenta di installarli automaticamente tramite i gestori pacchetti più comuni (`apt`, `yum`, `pacman`, Homebrew).  
+
+3. **Aggiornamento database vulnerabilità**    
+   - Scarica o aggiorna automaticamente i database di vulnerabilità di `vulscan` e `vulners` (plugin di `nmap` per vulnerability scanning).  
+   - Aggiorna la cache degli script nmap (`nmap --script-updatedb`).  
+
+4. **Validazione del target**    
+   Permette di inserire un indirizzo IP o hostname da sottoporre a scansione, validandolo con regex.  
+
+5. **Configurazione della scansione**    
+   Propone quattro profili di scansione con livelli di approfondimento crescente, che differiscono per tipi di script usati, porte scansionate e flag di esecuzione.  
+
+6. **Esecuzione scansione Nmap**    
+   Costruisce il comando nmap con i plugin e gli argomenti scelti, esegue la scansione e genera un file XML con i risultati.  
+
+7. **Parsing e analisi dei risultati**    
+   - Analizza il file XML prodotto da nmap, estraendo per ogni host le porte aperte, le vulnerabilità identificate con i rispettivi CVE.    
+   - Estrae anche la severità reale associata a ogni vulnerabilità ricavandola dall’output degli script (Critical, High, Medium, Low, Info).  
+
+8. **Generazione report HTML interattivo**    
+   Produce un report HTML completo e leggibile che include:    
+   - Sommario con numero totale di host, porte aperte e vulnerabilità trovate.    
+   - Distribuzione delle vulnerabilità per severità, con badge colorati.    
+   - Grafici dinamici (usa Chart.js) per la distribuzione delle severità e il numero di vulnerabilità per host.    
+   - Tabella con il dettaglio completo di ogni vulnerabilità (host, porta, CVE con link alla pagina ufficiale, severità e descrizione).    
+   - Filtri interattivi per visualizzare solo le vulnerabilità di alcune severità (es. mostrare solo Critical e High).    
+   - Organizzazione dei report in cartelle suddivise per profilo e identificatore del target.  
+
+***  
+
+### Utilizzo tipico  
+
+- Lanci lo script (come `sudo python3 script.py`), inserisci l’IP o hostname da scansionare e, opzionalmente, un nome descrittivo (alias).  
+- Scegli il profilo di scansione (da rapido a completo).  
+- Lo script gestisce dipendenze, aggiorna i database, esegue la scansione e genera report.  
+- Alla fine viene generato un report HTML interattivo facilmente consultabile via browser.  
+
+***  
+
+### Punti di forza  
+
+- Automazione completa dalla preparazione all’output finale.  
+- Integrazione dei plugin `vulners` e `vulscan` per massimizzare la copertura sulle vulnerabilità note.  
+- Parsing intelligente che estrae la severità reale e genera report visivamente chiari e interattivi.  
+- Supporto multi-piattaforma (Linux e macOS) con installazione automatica dipendenze.  
+- Report organizzati in una struttura di cartelle per una facile gestione storica.  
+
+***  
+
+In sintesi, è una soluzione pratica e completa per penetration tester o amministratori di sistema per automatizzare scansioni di vulnerabilità con `nmap`, producendo risultati immediatamente fruibili e ben organizzati. 
