@@ -7,7 +7,7 @@ Questo script Python è un tool automatizzato per effettuare scansioni di vulner
 
 ***  
 
-### Descrizione generale dello script  
+### Descrizione    
 
 1. **Controllo privilegi**    
    Lo script verifica di essere eseguito con privilegi di root, necessari per alcune funzionalità di `nmap`.  
