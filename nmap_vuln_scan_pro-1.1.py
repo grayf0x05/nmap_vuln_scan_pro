@@ -162,6 +162,49 @@ def generate_html_report_from_xml(xml_file, output_file="report.html"):
         'Info': '#808080'
     }
 
+    # ---------------------- RIASSUNTO ----------------------
+    total_hosts = len(host_data)
+    total_ports = sum(len(info['ports']) for info in host_data.values())
+    total_cves = sum(len(info['cves']) for info in host_data.values())
+
+    severity_rows = "".join(
+        f"<tr><td>{sev}</td><td><span class='severity-Cell' style='background:{severity_colors[sev]}'>{count}</span></td></tr>"
+        for sev, count in severity_count.items()
+    )
+
+    summary_table = f"""
+    <h2>Riassunto scansione</h2>
+    <table>
+        <tr><th>Totale host</th><th>Porte aperte</th><th>Vulnerabilità trovate</th></tr>
+        <tr>
+            <td>{total_hosts}</td>
+            <td>{total_ports}</td>
+            <td>{total_cves}</td>
+        </tr>
+    </table>
+    <h3>Distribuzione vulnerabilità per severità</h3>
+    <table>
+        <tr><th>Severità</th><th>Numero</th></tr>
+        {severity_rows}
+    </table>
+    """
+
+    host_summary = """
+    <h2>Dettagli host</h2>
+    <table>
+        <tr><th>Host</th><th>Porte aperte</th><th>Numero vulnerabilità</th></tr>
+    """
+    for ip, info in host_data.items():
+        host_summary += (
+            f"<tr>"
+            f"<td>{ip}</td>"
+            f"<td>{', '.join(info['ports']) if info['ports'] else '-'}</td>"
+            f"<td>{len(info['cves'])}</td>"
+            f"</tr>"
+        )
+    host_summary += "</table>"
+
+    # ---------------------- HTML ----------------------
     html_content = f"""
     <html>
     <head>
@@ -169,7 +212,7 @@ def generate_html_report_from_xml(xml_file, output_file="report.html"):
         <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
         <style>
             body{{font-family:Arial;}}
-            table{{border-collapse:collapse;width:100%;}}
+            table{{border-collapse:collapse;width:100%;margin-bottom:20px;}}
             th,td{{border:1px solid #ccc;padding:5px;text-align:left;}}
             th{{background-color:#f2f2f2;}}
             .severity-filter {{
@@ -189,6 +232,8 @@ def generate_html_report_from_xml(xml_file, output_file="report.html"):
     </head>
     <body>
         <h1>Report Vulnerabilità</h1>
+        {summary_table}
+        {host_summary}
         <h2>Distribuzione severità globale</h2>
         <canvas id="severityChart"></canvas>
         <h2>Vulnerabilità per host</h2>
@@ -220,7 +265,7 @@ def generate_html_report_from_xml(xml_file, output_file="report.html"):
 
     html_content += "</table>"
 
-    # Script Chart.js e filtro
+    # ---------------------- SCRIPT JS ----------------------
     html_content += f"""
     <script>
     const severityCtx = document.getElementById('severityChart').getContext('2d');
@@ -304,24 +349,36 @@ def main():
         print("[!] Target non valido.")
         sys.exit(1)
 
+    alias = input("Vuoi assegnare un nome descrittivo al target (es. server01)? [Invio per saltare]: ").strip()
+    alias = re.sub(r'[^a-zA-Z0-9_-]', '_', alias) if alias else target.replace(".", "_")
+
     print("Profilo di scansione:\n1) Rapida\n2) Standard\n3) Approfondita\n4) Completa")
     profile = input("Scegli profilo (1-4): ").strip()
     if profile not in ["1","2","3","4"]:
         print("[!] Profilo non valido. Uso 2 (Standard).")
         profile = "2"
 
+    profile_names = {"1": "Rapida", "2": "Standard", "3": "Approfondita", "4": "Completa"}
+    profile_name = profile_names.get(profile, "Standard")
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_xml = f"scan_{timestamp}.xml"
+
+    # Creazione cartella per report in base al profilo
+    reports_dir = os.path.join("reports", profile_name)
+    os.makedirs(reports_dir, exist_ok=True)
+
+    output_xml = os.path.join(reports_dir, f"scan_{alias}_{timestamp}.xml")
+    output_html = os.path.join(reports_dir, f"report_{alias}_{timestamp}.html")
 
     cmd = build_nmap_command(target, profile, output_xml)
-    print(f"[*] Avvio scansione Nmap sul target {target}...")
+    print(f"[*] Avvio scansione Nmap sul target {target} ({alias}) con profilo {profile_name})...")
     try:
         subprocess.run(cmd, check=True)
     except subprocess.CalledProcessError as e:
         print(f"[!] Errore durante la scansione: {e}")
         sys.exit(1)
 
-    generate_html_report_from_xml(output_xml)
+    generate_html_report_from_xml(output_xml, output_html)
+    print(f"[*] Report salvato in: {output_html}")
 
 if __name__ == "__main__":
     main()
