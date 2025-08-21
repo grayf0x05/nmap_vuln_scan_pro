@@ -3,7 +3,7 @@
   - Copyright ©️ 2025
   - Written by: grayf0x    
 
-Questo script Python è un tool automatizzato per effettuare scansioni di vulnerabilità su un host di rete usando `nmap` con l’integrazione dei plugin `vulners` e `vulscan`. Ecco una descrizione dettagliata delle sue funzionalità principali:  
+Questo script Python è un tool automatizzato per effettuare scansioni di vulnerabilità su un host di rete usando `nmap` con l’integrazione dei plugin `vulners` e `vulscan`.    
 
 ***  
 
