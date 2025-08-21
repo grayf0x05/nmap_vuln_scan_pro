@@ -97,23 +97,52 @@ def update_vulners():
         subprocess.run(["git", "-C", VULNERS_PATH, "pull"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 # ---------------------- NMAP ----------------------
+import subprocess
+
 def update_nmap_scripts():
     subprocess.run(["sudo", "nmap", "--script-updatedb"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 def build_nmap_command(target, profile, output_xml):
     scripts = ["vuln", "vulners", "vulscan/vulscan"]
     extra_flags = []
+
     if profile == "1":
         extra_flags = ["-T3", "--top-ports", "100"]
+
     elif profile == "2":
         scripts += ["ssl-cert", "ssl-enum-ciphers", "smb-vuln*", "ftp-anon"]
         extra_flags = ["-T3", "-p1-500", "--version-all"]
+
+    # Profilo 3 - versione VM-safe
     elif profile == "3":
-        scripts += ["default", "safe", "ssl-cert", "ssl-enum-ciphers", "smb-vuln*", "ftp-anon"]
-        extra_flags = ["-sS", "-sU", "-A", "-p-", "-T3", "--version-all", "--script-timeout", "5m", "--max-retries", "2"]
+        scripts += ["default", "safe", "ssl-cert", "ssl-enum-ciphers"]
+        extra_flags = [
+            "-sS",               # TCP SYN scan
+            "-p1-1024",          # solo porte comuni
+            "-T2",               # più lento, meno stress
+            "--version-all",
+            "--script-timeout", "2m",
+            "--max-retries", "1"
+        ]
+        # Script vulnerabilità separati (eseguibili uno per volta)
+        # smb-vuln* su porta 445
+        # ftp-anon su porta 21
+
+    # Profilo 4 - versione VM-safe
     elif profile == "4":
-        scripts += ["default", "safe", "auth", "discovery", "ssl-cert", "ssl-enum-ciphers", "smb-vuln*", "ftp-anon"]
-        extra_flags = ["-sS", "-sU", "-A", "-p-", "-T3", "--version-all", "--script-timeout", "5m", "--max-retries", "2", "--host-timeout", "2h"]
+        scripts += ["default", "safe", "auth", "discovery", "ssl-cert", "ssl-enum-ciphers"]
+        extra_flags = [
+            "-sS",
+            "-p1-1024",
+            "-T2",
+            "--version-all",
+            "--script-timeout", "2m",
+            "--max-retries", "1"
+        ]
+        # Script vulnerabilità separati
+        # smb-vuln* -> porta 445
+        # ftp-anon -> porta 21
+        # UDP limitato se necessario su porte note
 
     cmd = ["nmap", "-sV", "--stats-every", "5s", "--script", ",".join(scripts), "-oX", output_xml, target] + extra_flags
     return cmd
@@ -396,3 +425,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+    
