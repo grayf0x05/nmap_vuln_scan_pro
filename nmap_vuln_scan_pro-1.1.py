@@ -8,6 +8,7 @@ import re
 from datetime import datetime
 import shutil
 import html
+import json
 
 # ---------------------- PRIVILEGI ----------------------
 if os.geteuid() != 0:
@@ -121,7 +122,15 @@ SEVERITY_REGEX = re.compile(r"Severity:\s*(Critical|High|Medium|Low|Info)", re.I
 
 def parse_nmap_xml(xml_file):
     host_data = {}
-    tree = ET.parse(xml_file)
+    try:
+        tree = ET.parse(xml_file)
+    except ET.ParseError as e:
+        print(f"[!] Errore parsing XML {xml_file}: {e}")
+        return host_data
+    except FileNotFoundError:
+        print(f"[!] File XML non trovato: {xml_file}")
+        return host_data
+
     root = tree.getroot()
     for host in root.findall('host'):
         ip = next((addr.get('addr') for addr in host.findall('address') if addr.get('addrtype') == 'ipv4'), None)
@@ -134,14 +143,16 @@ def parse_nmap_xml(xml_file):
         scripts = host.findall('hostscript/script') + host.findall(".//script")
         for script in scripts:
             output = script.get('output', '')
-            severities_found = SEVERITY_REGEX.findall(output)
-            severity = severities_found[0].capitalize() if severities_found else 'Info'
-            for match in CVE_REGEX.findall(output):
-                cves.append({
-                    'id': match.upper(),
-                    'description': html.escape(output),
-                    'severity': severity
-                })
+            for line in output.splitlines():
+                cve_matches = CVE_REGEX.findall(line)
+                severity_matches = SEVERITY_REGEX.findall(line)
+                for cve in cve_matches:
+                    severity = severity_matches[0].capitalize() if severity_matches else 'Info'
+                    cves.append({
+                        'id': cve.upper(),
+                        'description': html.escape(line.strip()),
+                        'severity': severity
+                    })
         host_data[ip] = {'ports': ports, 'cves': cves}
     return host_data
 
@@ -366,16 +377,21 @@ def main():
     profile_names = {"1": "Rapida", "2": "Standard", "3": "Approfondita", "4": "Completa"}
     profile_name = profile_names.get(profile, "Standard")
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    import uuid
+    unique_id = uuid.uuid4().hex[:6]
 
     # Creazione cartella per report in base al profilo
     reports_dir = os.path.join("reports", profile_name)
     os.makedirs(reports_dir, exist_ok=True)
 
-    output_xml = os.path.join(reports_dir, f"scan_{alias}_{timestamp}.xml")
-    output_html = os.path.join(reports_dir, f"report_{alias}_{timestamp}.html")
+    output_xml = os.path.join(reports_dir, f"scan_{alias}_{timestamp}_{unique_id}.xml")
+    output_html = os.path.join(reports_dir, f"report_{alias}_{timestamp}_{unique_id}.html")
+
 
     cmd = build_nmap_command(target, profile, output_xml)
     print(f"[*] Avvio scansione Nmap sul target {target} ({alias}) con profilo {profile_name})...")
+    import time
+    start_time = time.time()
     try:
         subprocess.run(cmd, check=True)
     except subprocess.CalledProcessError as e:
@@ -383,7 +399,22 @@ def main():
         sys.exit(1)
 
     generate_html_report_from_xml(output_xml, output_html)
+    elapsed = time.time() - start_time
+    minutes, seconds = divmod(int(elapsed), 60)
+    print(f"[*] Tempo impiegato per la scansione: {minutes}m {seconds}s")
+
+    output_json = os.path.join(reports_dir, f"report_{alias}_{timestamp}_{unique_id}.json")
+    save_json_report(output_xml, output_json)
+
     print(f"[*] Report salvato in: {output_html}")
+    import json
+
+def save_json_report(xml_file, output_file="report.json"):
+    data = parse_nmap_xml(xml_file)
+    with open(output_file, "w") as f:
+        json.dump(data, f, indent=4)
+    print(f"[*] Report JSON generato: {output_file}")
 
 if __name__ == "__main__":
     main()
+    
