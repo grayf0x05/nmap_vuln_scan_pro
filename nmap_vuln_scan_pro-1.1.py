@@ -206,29 +206,34 @@ def generate_html_report_from_xml(xml_file, output_file="report.html"):
 
     # ---------------------- HTML ----------------------
     html_content = f"""
-    <html>
-    <head>
-        <title>Report Vulnerabilità</title>
-        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-        <style>
-            body{{font-family:Arial;}}
-            table{{border-collapse:collapse;width:100%;margin-bottom:20px;}}
-            th,td{{border:1px solid #ccc;padding:5px;text-align:left;}}
-            th{{background-color:#f2f2f2;}}
-            .severity-filter {{
-                margin-bottom: 15px;
-                font-size: 16px;
-            }}
-            .severity-Cell {{
-                padding: 2px 6px;
-                border-radius: 4px;
-                color: white;
-                font-weight: bold;
-                display: inline-block;
-            }}
-            a {{ color: #1E90FF; text-decoration: none; }}
-            a:hover {{ text-decoration: underline; }}
-        </style>
+<html>
+<head>
+    <title>Report Vulnerabilità</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+    body{{font-family:Arial;}}
+    table{{border-collapse:collapse;width:100%;margin-bottom:20px;}}
+    th,td{{border:1px solid #ccc;padding:5px;text-align:left;}}
+    th{{background-color:#f2f2f2;}}
+    .severity-filter {{
+        margin-bottom: 15px;
+        font-size: 16px;
+    }}
+    .severity-Cell {{
+        padding: 2px 6px;
+        border-radius: 4px;
+        color: white;
+        font-weight: bold;
+        display: inline-block;
+    }}
+    a {{ color: #1E90FF; text-decoration: none; }}
+    a:hover {{ text-decoration: underline; }}
+    #severityChart, #hostChart {{
+        width: 400px !important;
+        height: 300px !important;
+    }}
+</style>
+
     </head>
     <body>
         <h1>Report Vulnerabilità</h1>
