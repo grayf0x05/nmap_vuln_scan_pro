@@ -58,7 +58,8 @@ Questo script Python è un tool automatizzato per effettuare scansioni di vulner
 - Integrazione dei plugin `vulners` e `vulscan` per massimizzare la copertura sulle vulnerabilità note.  
 - Parsing intelligente che estrae la severità reale e genera report visivamente chiari e interattivi.  
 - Supporto multi-piattaforma (Linux e macOS) con installazione automatica dipendenze.  
-- Report organizzati in una struttura di cartelle per una facile gestione storica.  
+- Report organizzati in una struttura di cartelle per una facile gestione storica.
+- Nella versione 1.2 sono stati ottimizzati i profili di scansione 3 e 4 per macchine virtuali.  
 
 ***  
 
