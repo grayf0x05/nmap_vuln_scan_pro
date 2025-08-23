@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 import argparse
 import subprocess
 import xml.etree.ElementTree as ET
@@ -14,7 +16,7 @@ import uuid
 import time
 import csv
 
-# ---------------------- COSTANTI PERCORSI ----------------------
+# ---------------------- PERCORSI ----------------------
 VULSCAN_PATH = "/usr/share/nmap/scripts/vulscan/"
 VULNERS_PATH = "/usr/share/nmap/scripts/vulners/"
 
@@ -26,13 +28,11 @@ def validate_target(target: str) -> bool:
     return bool(IPV4_REGEX.match(target) or HOSTNAME_REGEX.match(target))
 
 # ---------------------- DIPENDENZE ----------------------
-
 def detect_pkg_manager():
     for pm in ["apt", "dnf", "yum", "pacman"]:
         if shutil.which(pm):
             return pm
     return None
-
 
 def install_dependencies(tools):
     system_platform = platform.system()
@@ -59,7 +59,6 @@ def install_dependencies(tools):
         print(f"[!] Sistema operativo non supportato: {system_platform}. Installa manualmente: {', '.join(tools)}")
         sys.exit(1)
 
-
 def check_dependencies():
     print("[*] Verifica delle dipendenze...")
     required_tools = ["nmap", "git", "python3", "curl", "wget"]
@@ -70,25 +69,49 @@ def check_dependencies():
     else:
         print("[*] Tutte le dipendenze sono presenti.")
 
-# ---------------------- AGGIORNAMENTO SCRIPT NSE ----------------------
+# ---------------------- GIT UTILS ----------------------
+def _is_git_repo(path: str) -> bool:
+    try:
+        subprocess.run(["git", "-C", path, "rev-parse", "--is-inside-work-tree"],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+        return True
+    except subprocess.CalledProcessError:
+        return False
 
 def git_clone_or_pull(repo_url: str, dest_path: str):
-    if os.path.isdir(dest_path) and os.listdir(dest_path):
-        # pull
-        try:
-            subprocess.run(["git", "-C", dest_path, "pull", "--ff-only"], check=True,
-                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        except subprocess.CalledProcessError:
-            print(f"[!] Errore durante 'git pull' in {dest_path}.")
+    parent = os.path.dirname(dest_path.rstrip("/"))
+    os.makedirs(parent, exist_ok=True)
+    if os.path.isdir(dest_path):
+        if _is_git_repo(dest_path):
+            try:
+                subprocess.run(["git", "-C", dest_path, "pull", "--ff-only"],
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+            except subprocess.CalledProcessError:
+                print(f"[!] Errore durante 'git pull' in {dest_path}.")
+        else:
+            # cartella presente ma non repo: reclona in tmp e sostituisci contenuti
+            tmp = dest_path.rstrip("/") + ".tmpclone"
+            if os.path.exists(tmp):
+                shutil.rmtree(tmp, ignore_errors=True)
+            try:
+                subprocess.run(["git", "clone", repo_url, tmp], check=True,
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                # pulisci dest e muovi contenuti
+                for name in os.listdir(dest_path):
+                    p = os.path.join(dest_path, name)
+                    shutil.rmtree(p, ignore_errors=True) if os.path.isdir(p) else os.remove(p)
+                for name in os.listdir(tmp):
+                    shutil.move(os.path.join(tmp, name), os.path.join(dest_path, name))
+            finally:
+                shutil.rmtree(tmp, ignore_errors=True)
     else:
-        parent = os.path.dirname(dest_path.rstrip("/"))
-        os.makedirs(parent, exist_ok=True)
         try:
-            subprocess.run(["git", "clone", repo_url, dest_path], check=True)
+            subprocess.run(["git", "clone", repo_url, dest_path], check=True,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except subprocess.CalledProcessError:
             print(f"[!] Errore clonando {repo_url} in {dest_path}.")
 
-
+# ---------------------- AGGIORNAMENTO SCRIPT NSE ----------------------
 def update_vulscan_db():
     print("[*] Aggiornamento Vulscan...")
     git_clone_or_pull("https://github.com/scipag/vulscan.git", VULSCAN_PATH)
@@ -103,20 +126,18 @@ def update_vulscan_db():
     except subprocess.CalledProcessError:
         print("[!] Errore durante l'aggiornamento dei database Vulscan.")
 
-
 def update_vulners():
     print("[*] Aggiornamento Vulners...")
     git_clone_or_pull("https://github.com/vulnersCom/nmap-vulners.git", VULNERS_PATH)
 
-
 def update_nmap_scripts():
     try:
-        subprocess.run(["nmap", "--script-updatedb"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+        subprocess.run(["nmap", "--script-updatedb"],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
     except subprocess.CalledProcessError:
         print("[!] nmap --script-updatedb ha restituito un errore (continuo).")
 
 # ---------------------- COSTRUZIONE COMANDO NMAP ----------------------
-
 def build_nmap_command(target, profile, output_xml, vm_safe=True):
     scripts = ["vuln", "vulners", "vulscan/vulscan"]
     extra_flags = ["--stats-every", "5s"]
@@ -143,6 +164,10 @@ def build_nmap_command(target, profile, output_xml, vm_safe=True):
 CVE_REGEX = re.compile(r"(CVE-\d{4}-\d{4,7})", re.IGNORECASE)
 SEVERITY_REGEX = re.compile(r"Severity:\s*(Critical|High|Medium|Low|Info)", re.IGNORECASE)
 CVSS_REGEX = re.compile(r"CVSS[:\s]*(?:v3[\.\d]*)?[:\s]*([0-9]+\.[0-9]+)", re.IGNORECASE)
+# CVSS stampato subito dopo il CVE (es. "CVE-2019-1234 7.5 …")
+CVSS_AFTER_CVE_REGEX = re.compile(r"CVE-\d{4}-\d{4,7}\s+([0-9]{1,2}\.[0-9])")
+# Parole di severità senza prefisso "Severity:"
+SEVERITY_WORDS_REGEX = re.compile(r"\b(Critical|High|Medium|Low)\b", re.IGNORECASE)
 
 SEV_BUCKETS = {
     'critical': (9.0, 10.0),
@@ -152,17 +177,54 @@ SEV_BUCKETS = {
 }
 
 def _cvss_to_severity(cvss: float) -> str:
+    if cvss is None:
+        return 'Info'
     for sev, (lo, hi) in SEV_BUCKETS.items():
         if lo <= cvss <= hi:
             return sev.capitalize()
     return 'Info'
 
+# Estrazione CVE/CSVSS da strutture XML (script <table>/<elem>)
+def _extract_structured_cves(script_elem):
+    pairs = []  # (cve_id, cvss or None)
+    for tbl in script_elem.findall('.//table'):
+        row = {}
+        for e in tbl.findall('elem'):
+            k = (e.get('key') or '').lower()
+            row[k] = (e.text or '').strip()
+        # trova CVE in un qualsiasi valore
+        cve_id = None
+        for v in list(row.values()):
+            m = CVE_REGEX.search(v or '')
+            if m:
+                cve_id = m.group(1).upper()
+                break
+        if not cve_id:
+            continue
+        # prova a ricavare il cvss
+        cvss = None
+        for k, v in row.items():
+            if 'cvss' in k or 'score' in k:
+                m = re.search(r'([0-9]{1,2}\.[0-9])', v or '')
+                if m:
+                    try:
+                        cvss = float(m.group(1))
+                    except Exception:
+                        pass
+                else:
+                    try:
+                        cvss = float(v)
+                    except Exception:
+                        pass
+        pairs.append((cve_id, cvss))
+    return pairs
 
 def parse_nmap_xml(xml_file):
     """
     Ritorna struttura per host:
     {
       ip: {
+        'hostname': 'example.local',
         'ports': ['22/tcp', ...],
         'services': { '22/tcp': {'name': 'ssh', 'product': 'OpenSSH', 'version': '8.x', 'extrainfo': ''} },
         'cves': [ {'id': 'CVE-XXXX-YYYY', 'severity': 'High', 'port': '22/tcp', 'description': '...'} ]
@@ -191,6 +253,7 @@ def parse_nmap_xml(xml_file):
         names = [hn.get('name') for hn in host.findall('hostnames/hostname') if hn.get('name')]
         if names:
             info['hostname'] = names[0]
+
         seen = set()  # (CVE, port)
 
         # Per porta
@@ -213,14 +276,37 @@ def parse_nmap_xml(xml_file):
                 }
 
             for s in p.findall('script'):
+                # Estrazione strutturata (tabellare)
+                for cve_id, cvss_score in _extract_structured_cves(s):
+                    key = (cve_id, port_key)
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    sev = _cvss_to_severity(cvss_score) if isinstance(cvss_score, float) else 'Info'
+                    info['cves'].append({
+                        'id': cve_id,
+                        'description': html.escape(f'CVSS {cvss_score}' if cvss_score is not None else '—'),
+                        'severity': sev,
+                        'port': port_key
+                    })
+                # Estrazione da output testuale
                 output = s.get('output', '') or ''
                 for line in output.splitlines():
                     line = line.strip()
                     if not line:
                         continue
                     cves = CVE_REGEX.findall(line)
+
+                    # prova: "CVSS: 9.8" / "CVSSv3 Base Score: 9.8"
                     cvss_match = CVSS_REGEX.search(line)
+                    # fallback: numero subito dopo il CVE, es. "CVE-2019-1234 7.5"
+                    if not cvss_match:
+                        cvss_match = CVSS_AFTER_CVE_REGEX.search(line)
+
+                    # severità come parola (con o senza "Severity:")
                     sev_match = SEVERITY_REGEX.search(line)
+                    if not sev_match:
+                        sev_match = SEVERITY_WORDS_REGEX.search(line)
 
                     if cvss_match:
                         try:
@@ -246,14 +332,38 @@ def parse_nmap_xml(xml_file):
 
         # Hostscript (non legato a porta)
         for s in host.findall('hostscript/script'):
+            # Estrazione strutturata (tabellare)
+            for cve_id, cvss_score in _extract_structured_cves(s):
+                key = (cve_id, None)
+                if key in seen:
+                    continue
+                seen.add(key)
+                sev = _cvss_to_severity(cvss_score) if isinstance(cvss_score, float) else 'Info'
+                info['cves'].append({
+                    'id': cve_id,
+                    'description': html.escape('Structured'),
+                    'severity': sev,
+                    'port': '-'
+                })
+            # Estrazione da output testuale
             output = s.get('output', '') or ''
             for line in output.splitlines():
                 line = line.strip()
                 if not line:
                     continue
                 cves = CVE_REGEX.findall(line)
+
+                # prova: "CVSS: 9.8" / "CVSSv3 Base Score: 9.8"
                 cvss_match = CVSS_REGEX.search(line)
+                # fallback: numero subito dopo il CVE, es. "CVE-2019-1234 7.5"
+                if not cvss_match:
+                    cvss_match = CVSS_AFTER_CVE_REGEX.search(line)
+
+                # severità come parola (con o senza "Severity:")
                 sev_match = SEVERITY_REGEX.search(line)
+                if not sev_match:
+                    sev_match = SEVERITY_WORDS_REGEX.search(line)
+
                 if cvss_match:
                     try:
                         sev = _cvss_to_severity(float(cvss_match.group(1)))
@@ -263,6 +373,7 @@ def parse_nmap_xml(xml_file):
                     sev = sev_match.group(1).capitalize()
                 else:
                     sev = 'Info'
+
                 for cve in cves:
                     key = (cve.upper(), None)
                     if key in seen:
@@ -280,7 +391,6 @@ def parse_nmap_xml(xml_file):
     return host_data
 
 # ---------------------- REPORT HTML/JSON/CSV ----------------------
-
 def generate_html_report_from_xml(xml_file, output_file="report.html"):
     host_data = parse_nmap_xml(xml_file)
 
@@ -298,10 +408,15 @@ def generate_html_report_from_xml(xml_file, output_file="report.html"):
             return f"{html.escape(hn)} <code class='ip-badge'>{ip}</code>"
         return f"<code class='ip-badge'>{ip}</code>"
 
+    # Conteggi e ordinamento
     severity_count = {k: 0 for k in severity_colors.keys()}
     for info in host_data.values():
         for cve in info['cves']:
             severity_count[cve.get('severity', 'Info')] = severity_count.get(cve.get('severity', 'Info'), 0) + 1
+
+    SEV_ORDER = {'Critical':0,'High':1,'Medium':2,'Low':3,'Info':4}
+    for info in host_data.values():
+        info['cves'].sort(key=lambda c: (SEV_ORDER.get(c.get('severity','Info'),4), c.get('id','')))
 
     total_hosts = len(host_data)
     total_ports = sum(len(info['ports']) for info in host_data.values())
@@ -344,6 +459,19 @@ def generate_html_report_from_xml(xml_file, output_file="report.html"):
         )
     host_summary += "</table>"
 
+    # Dati per i grafici (passati come JSON)
+    severity_labels_js = json.dumps(list(severity_count.keys()))
+    severity_values_js = json.dumps([severity_count[k] for k in severity_count.keys()])
+    severity_colors_js = json.dumps([severity_colors[k] for k in severity_count.keys()])
+
+    host_order = sorted(host_data.keys(), key=lambda k: len(host_data[k]['cves']), reverse=True)
+    host_labels_display = []
+    for h in host_order:
+        hn = host_data[h].get('hostname') or ''
+        host_labels_display.append(f"{hn} ({h})" if hn and hn != h else h)
+    host_labels_js = json.dumps(host_labels_display)
+    host_values_js = json.dumps([len(host_data[h]['cves']) for h in host_order])
+
     html_content = f"""
 <html>
 <head>
@@ -361,6 +489,7 @@ def generate_html_report_from_xml(xml_file, output_file="report.html"):
     #severityChart, #hostChart {{width: 550px !important;height: 350px !important;}}
     .ip-badge {{background:#f6f6f6; border:1px solid #ddd; padding:1px 4px; border-radius:4px; font-family: monospace;}}
     .legend-box {{background:#fafafa; border:1px solid #eee; padding:8px 12px; border-radius:6px; margin:12px 0;}}
+    .sort-controls {{margin: 8px 0;}}
 </style>
 </head>
 <body>
@@ -387,8 +516,21 @@ def generate_html_report_from_xml(xml_file, output_file="report.html"):
 Filtra per severità:
 {''.join([f'<label><input type="checkbox" class="sev-filter" value="{sev}" checked> {sev}</label> ' for sev in severity_count])}
 </div>
+<div class="sort-controls">
+  Ordina per:
+  <select id="sortMode">
+    <option value="severity">Severità</option>
+    <option value="port">Porta</option>
+    <option value="cve">CVE</option>
+    <option value="host">Host</option>
+  </select>
+  <label><input type="checkbox" id="sortDesc"> Discendente</label>
+</div>
 <table>
+<thead>
 <tr><th>Host (hostname/IP)</th><th>Porta</th><th>Servizio</th><th>CVE</th><th>Severità</th><th>Descrizione</th></tr>
+</thead>
+<tbody id="cveBody">
 """
 
     # Tabella CVE dettagliata
@@ -402,8 +544,15 @@ Filtra per severità:
             cve_id = cve['id']
             mitre = f"https://cve.mitre.org/cgi-bin/cvename.cgi?name={cve_id}"
             nvd   = f"https://nvd.nist.gov/vuln/detail/{cve_id}"
+            SEV_ORDER = {'Critical':0,'High':1,'Medium':2,'Low':3,'Info':4}
+            sev_rank = SEV_ORDER.get(cve['severity'], 4)
+            host_sort = info.get('hostname') or ip
+            try:
+                port_num = int(str(port).split('/')[0])
+            except Exception:
+                port_num = 65535
             html_content += (
-                f"<tr class='cve-row {sev_class}'>"
+                f"<tr class='cve-row {sev_class}' data-sev='{sev_rank}' data-port='{port_num}' data-cve='{cve_id}' data-host='{html.escape(host_sort)}'>"
                 f"<td>{host_label(ip, info)}</td>"
                 f"<td>{port}</td>"
                 f"<td>{html.escape(svc_str)}</td>"
@@ -413,24 +562,17 @@ Filtra per severità:
                 "</tr>"
             )
 
-    html_content += "</table>"
+    html_content += "</tbody></table>"
 
-    # Dati per grafici (host ordinati per numero CVE)
-    host_order = sorted(host_data.keys(), key=lambda k: len(host_data[k]['cves']), reverse=True)
-    host_labels = []
-    for h in host_order:
-        hn = host_data[h].get('hostname') or ''
-        host_labels.append(f"{hn} ({h})" if hn and hn != h else h)
-    host_values = [len(host_data[h]['cves']) for h in host_order]
-
+    # Script: usa JSON per evitare graffe problematiche
     html_content += f"""
 <script>
 const severityCtx = document.getElementById('severityChart').getContext('2d');
 new Chart(severityCtx, {{
     type: 'pie',
     data: {{
-        labels: {list(severity_count.keys())},
-        datasets: [{{data: {list(severity_count.values())}, backgroundColor: {list(severity_colors.values())}}}]
+        labels: {severity_labels_js},
+        datasets: [{{data: {severity_values_js}, backgroundColor: {severity_colors_js}}}]
     }},
     options: {{responsive: true, plugins: {{ legend: {{ position: 'bottom' }}, title: {{ display: true, text: 'Distribuzione per severità' }}, tooltip: {{ callbacks: {{ label: function(ctx) {{ return ctx.label + ': ' + ctx.parsed + ' vulnerabilità'; }} }} }} }}}}
 }});
@@ -438,8 +580,8 @@ const hostCtx = document.getElementById('hostChart').getContext('2d');
 new Chart(hostCtx, {{
     type: 'bar',
     data: {{
-        labels: {host_labels},
-        datasets: [{{label: 'Numero vulnerabilità', data: {host_values}}}]
+        labels: {host_labels_js},
+        datasets: [{{label: 'Numero vulnerabilità', data: {host_values_js}}}]
     }},
     options: {{responsive: true, scales: {{ x: {{ title: {{ display: true, text: 'Host' }} }}, y: {{ beginAtZero: true, ticks: {{ precision: 0, stepSize: 1 }}, title: {{ display: true, text: 'Numero vulnerabilità' }} }} }}, plugins: {{ legend: {{ display: false }}, title: {{ display: true, text: 'Vulnerabilità per host' }}, tooltip: {{ callbacks: {{ label: function(ctx) {{ return ctx.parsed.y + ' vulnerabilità'; }} }} }} }}}}
 }});
@@ -452,6 +594,39 @@ function applyFilter() {{
     }});
 }}
 checkboxes.forEach(cb => cb.addEventListener('change', applyFilter));
+
+// Ordinamento CVE
+const sortMode = document.getElementById('sortMode');
+const sortDesc = document.getElementById('sortDesc');
+function applySort() {{
+    const tbody = document.getElementById('cveBody');
+    if (!tbody) return;
+    const rows = Array.from(tbody.querySelectorAll('tr.cve-row'));
+    const mode = (sortMode && sortMode.value) || 'severity';
+    const desc = !!(sortDesc && sortDesc.checked);
+    const keyFns = {{
+        severity: r => parseInt(r.dataset.sev || '4', 10),
+        port: r => parseInt(r.dataset.port || '65535', 10),
+        cve: r => (r.dataset.cve || ''),
+        host: r => (r.dataset.host || '')
+    }};
+    const keyFn = keyFns[mode] || keyFns.severity;
+    rows.sort((a,b)=>{{
+        const ka = keyFn(a), kb = keyFn(b);
+        if (ka < kb) return desc ? 1 : -1;
+        if (ka > kb) return desc ? -1 : 1;
+        const ca = (a.dataset.cve||'');
+        const cb = (b.dataset.cve||'');
+        if (ca < cb) return desc ? 1 : -1;
+        if (ca > cb) return desc ? -1 : 1;
+        return 0;
+    }});
+    rows.forEach(r => tbody.appendChild(r));
+}}
+if (sortMode) sortMode.addEventListener('change', applySort);
+if (sortDesc) sortDesc.addEventListener('change', applySort);
+applyFilter();
+applySort();
 </script>
 </body></html>
 """
@@ -460,13 +635,11 @@ checkboxes.forEach(cb => cb.addEventListener('change', applyFilter));
         f.write(html_content)
     print(f"[*] Report HTML generato: {output_file}")
 
-
 def save_json_report(xml_file, output_file="report.json"):
     data = parse_nmap_xml(xml_file)
     with open(output_file, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=4)
     print(f"[*] Report JSON generato: {output_file}")
-
 
 def save_csv_report(xml_file, output_file="report.csv"):
     data = parse_nmap_xml(xml_file)
@@ -481,7 +654,6 @@ def save_csv_report(xml_file, output_file="report.csv"):
     print(f"[*] Report CSV generato: {output_file}")
 
 # ---------------------- BANNER ----------------------
-
 def print_banner():
     print("""
 =========================================
@@ -492,19 +664,16 @@ def print_banner():
 """)
 
 # ---------------------- ARGPARSE ----------------------
-
 def parse_args():
     p = argparse.ArgumentParser(description="Nmap Vulnerability Scanner Pro")
     p.add_argument("target", nargs="?", help="IP o hostname da scansionare")
-    p.add_argument("-p", "--profile", choices=["1","2","3","4"],
+    p.add_argument("-p", "--profile", choices=["1", "2", "3", "4"],
                    help="Profilo di scansione (1=Rapida,2=Standard,3=Approfondita,4=Completa)")
     p.add_argument("-a", "--alias", default=None, help="Alias del target (default: derivato dal target)")
     p.add_argument("-o", "--outdir", default=None, help="Directory base report (default: reports/<Profilo>)")
     p.add_argument("--no-update", action="store_true", help="Non aggiornare/installa script NSE")
     p.add_argument("--vm-safe", action="store_true", help="Forza impostazioni gentili per VM")
     return p.parse_args()
-
-# ---------------------- MAIN ----------------------
 
 def choose_profile_interactive(default="2"):
     print("""Profilo di scansione:
@@ -514,10 +683,11 @@ def choose_profile_interactive(default="2"):
 4) Completa""")
     while True:
         sel = input(f"Scegli profilo (1-4) [{default}]: ").strip() or default
-        if sel in ("1","2","3","4"):
+        if sel in ("1", "2", "3", "4"):
             return sel
         print("[!] Valore non valido. Riprova.")
 
+# ---------------------- MAIN ----------------------
 def main():
     # Root check
     if os.geteuid() != 0:
@@ -542,7 +712,7 @@ def main():
         if sys.stdin.isatty():
             profile = choose_profile_interactive()
         else:
-            profile = "2"
+            profile = "2"  # default in non-interattivo/CI
     profile_names = {"1": "Rapida", "2": "Standard", "3": "Approfondita", "4": "Completa"}
     profile_name = profile_names.get(profile, "Standard")
 
@@ -595,7 +765,6 @@ def main():
     print("   JSON:", os.path.abspath(output_json))
     print("   CSV :", os.path.abspath(output_csv))
     print("   LOG :", os.path.abspath(output_log))
-
 
 if __name__ == "__main__":
     main()
