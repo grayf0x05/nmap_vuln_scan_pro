@@ -653,14 +653,20 @@ def save_csv_report(xml_file, output_file="report.csv"):
                 w.writerow([ip, c.get("port", "-"), svc_str, c["id"], c["severity"], html.unescape(c["description"])])
     print(f"[*] Report CSV generato: {output_file}")
 
-# ---------------------- BANNER ----------------------
+# ====================== BANNER ======================
 def print_banner():
-    print("""
+    RED     = "\033[91m"
+    GREEN   = "\033[92m"
+    YELLOW  = "\033[93m"
+    CYAN    = "\033[96m"
+    RESET   = "\033[0m"
+    BOLD    = "\033[1m"
+    print(f"""{CYAN}{BOLD}
 =========================================
-        Nmap Vulnerability Scanner Pro
-            Created by: grayf0x
-               Version: 1.3
-=========================================
+        \033[91mNmap Vulnerability Scanner Pro\033[0m{CYAN}{BOLD}
+            {GREEN}Created by: grayf0x{RESET}{CYAN}{BOLD}
+               {YELLOW}Version: 1.3{RESET}{CYAN}{BOLD}
+========================================={RESET}
 """)
 
 # ---------------------- ARGPARSE ----------------------
