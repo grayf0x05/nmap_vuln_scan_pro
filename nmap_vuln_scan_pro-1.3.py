@@ -16,6 +16,11 @@ import uuid
 import time
 import csv
 
+# ---------------------- PRIVILEGI ----------------------
+if os.geteuid() != 0:
+    print("[!] Lo script richiede privilegi di root. Usa 'sudo'.")
+    sys.exit(1)
+
 # ---------------------- PERCORSI ----------------------
 VULSCAN_PATH = "/usr/share/nmap/scripts/vulscan/"
 VULNERS_PATH = "/usr/share/nmap/scripts/vulners/"
