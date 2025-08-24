@@ -8,7 +8,7 @@ Questo script Python è un tool automatizzato per effettuare scansioni di vulner
 ***  
 
 ## 🎥 Video Tutorial
-[![Guarda il tutorial su YouTube](https://img.youtube.com/vi/JSDotBUQ9y0/0.jpg)](https://www.youtube.com/watch?v=JSDotBUQ9y0)
+[![Guarda il tutorial su YouTube](https://img.youtube.com/vi/qbUjt6nPReo/0.jpg)](https://www.youtube.com/watch?v=qbUjt6nPReo)
 
 
 ### Descrizione    
