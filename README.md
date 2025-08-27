@@ -28,9 +28,9 @@ L’autore non si assume alcuna responsabilità per usi impropri.
 - Report HTML con grafici interattivi (Chart.js) e funzioni di filtro/ordinamento CVE.
 - Log dettagliati delle scansioni ed eventuali aggiornamenti (`logs/`).
 - Aggiornamento automatico dei database NSE (`vulscan`, `vulners`, `--script-updatedb`).
-- Gestione **profilo di scansione** (rapida, standard, approfondita, completa).
+- Gestione **profili di scansione** (Rapida, Standard, Approfondita, Completa).
 - Supporto parametri da linea di comando con opzioni avanzate.
-- Fallback automatico: se non eseguito come root, passa da `-sS` a `-sT`.
+- **Richiede esecuzione come root**: non è più previsto fallback automatico.
 
 ---
 
@@ -38,7 +38,7 @@ L’autore non si assume alcuna responsabilità per usi impropri.
 - **Python 3.8+**
 - **Nmap** installato e raggiungibile da `$PATH`
 - Strumenti base (`git`, `curl`, `wget`)
-- Accesso root consigliato (alcune scansioni avanzate richiedono privilegi)
+- **Accesso root obbligatorio** (alcune funzionalità non si avviano senza privilegi)
 - Nessuna dipendenza Python esterna: usa solo librerie standard
 - Database `vulscan` e `vulners` vengono scaricati/aggiornati automaticamente nella cartella scripts di Nmap:
   ```
@@ -57,7 +57,7 @@ cd nmap-vuln-scan-pro
 
 Rendi eseguibile lo script:
 ```bash
-chmod +x nmap_vuln_scan_pro-1.4.py
+chmod +x nmap_vuln_scan_pro-1.5.py
 ```
 
 ---
@@ -66,22 +66,22 @@ chmod +x nmap_vuln_scan_pro-1.4.py
 
 ### Esempio base
 ```bash
-sudo ./nmap_vuln_scan_pro-1.4.py 192.168.1.100
+sudo ./nmap_vuln_scan_pro-1.5.py 192.168.1.100
 ```
 
 ### Scansione di un’intera subnet
 ```bash
-sudo ./nmap_vuln_scan_pro-1.4.py 192.168.1.0/24
+sudo ./nmap_vuln_scan_pro-1.5.py 192.168.1.0/24
 ```
 
 ### Report HTML e apertura automatica
 ```bash
-sudo ./nmap_vuln_scan_pro-1.4.py scanme.nmap.org --open-html
+sudo ./nmap_vuln_scan_pro-1.5.py scanme.nmap.org --open-html
 ```
 
 ### Dry-run (mostra solo il comando Nmap che verrebbe eseguito)
 ```bash
-./nmap_vuln_scan_pro-1.4.py scanme.nmap.org --dry-run
+sudo ./nmap_vuln_scan_pro-1.5.py scanme.nmap.org --dry-run
 ```
 
 ---
@@ -97,35 +97,13 @@ Lo script offre **4 profili preconfigurati** che bilanciano velocità e profondi
 | **3**   | Approfondita   | Scansione SYN (`-sS`) delle prime 1024 porte, con script `default`, `safe`, `ssl-cert`, `ssl-enum-ciphers`. Timeout e retry limitati. |
 | **4**   | Completa       | Scansione SYN (`-sS`) fino alla porta 2048, con script `default`, `safe`, `auth`, `discovery`, `ssl`. Timeout e retry limitati. |
 
-🔹 Se eseguito **senza privilegi root**, i profili **3 e 4** degradano automaticamente a `-sT` (connect scan).  
-
-### Esempi
-
-- **Scansione rapida di un host**
-```bash
-sudo ./nmap_vuln_scan_pro-1.4.py 192.168.1.50 -p 1
-```
-
-- **Scansione standard di un sito**
-```bash
-sudo ./nmap_vuln_scan_pro-1.4.py scanme.nmap.org -p 2
-```
-
-- **Scansione approfondita di una subnet**
-```bash
-sudo ./nmap_vuln_scan_pro-1.4.py 192.168.1.0/24 -p 3
-```
-
-- **Scansione completa di un server con report HTML**
-```bash
-sudo ./nmap_vuln_scan_pro-1.4.py 10.0.0.5 -p 4 --open-html
-```
+🔹 Tutti i profili richiedono privilegi **root** per l’esecuzione corretta.  
 
 ---
 
-## 🔧 Parametri disponibili (v1.4)
+## 🔧 Parametri disponibili (v1.5)
 ```
-usage: nmap_vuln_scan_pro-1.4.py [-h] [target] [-p {1,2,3,4}]
+usage: nmap_vuln_scan_pro-1.5.py [-h] [target] [-p {1,2,3,4}]
                                  [-a ALIAS] [-o OUTDIR] [--no-update]
                                  [--no-vm-safe] [--ports PORTS]
                                  [--scripts-extra SCRIPTS_EXTRA]
@@ -161,7 +139,7 @@ Opzioni:
 ## 📑 Esempio di output
 Esecuzione:
 ```bash
-sudo ./nmap_vuln_scan_pro-1.4.py scanme.nmap.org --open-html
+sudo ./nmap_vuln_scan_pro-1.5.py scanme.nmap.org --open-html
 ```
 
 Estratto dal report JSON:
@@ -185,29 +163,6 @@ Estratto dal report JSON:
     }
 }
 ```
-
----
-
-## 📝 Cronologia versioni
-- **v1.4**
-  - Nuovi profili di scansione (Rapida/Standard/Approfondita/Completa)
-  - Report HTML interattivo con Chart.js, filtri e ordinamento
-  - Aggiunta opzione `--dry-run` e flag `--no-json`, `--no-csv`, `--no-html`
-  - Parsing CVSS migliorato (supporto CVSS v3.1)
-  - CSV sicuro (mitigazione formula injection in Excel)
-  - Fallback `-sT` se non root (per scansioni avanzate)
-  - Aggiornamento automatico `vulscan`, `vulners` e `--script-updatedb`
-- **v1.3**
-  - Aggiunto `argparse` e supporto CSV
-  - Modularità migliorata
-- **v1.2**
-  - Supporto JSON e UUID
-  - Logging avanzato con timestamp
-- **v1.1**
-  - Controllo privilegi `root`
-  - Parsing HTML
-- **v1.0**
-  - Versione base con dipendenze e path database
 
 ---
 
