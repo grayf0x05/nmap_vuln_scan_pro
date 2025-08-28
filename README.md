@@ -51,8 +51,8 @@ L’autore non si assume alcuna responsabilità per usi impropri.
 ## ⚙️ Installazione
 Clona la repository:
 ```bash
-git clone https://github.com/grayf0x05/nmap-vuln-scan-pro.git
-cd nmap-vuln-scan-pro
+git clone https://github.com/grayf0x05/nmap_vuln_scan_pro.git
+cd nmap_vuln_scan_pro
 ```
 
 Rendi eseguibile lo script:
