@@ -6,7 +6,7 @@
 ***  
 
 ## 🎥 Video Tutorial
-[![Guarda il tutorial su YouTube](https://img.youtube.com/vi/aAVvBN4LmPU/0.jpg)](https://www.youtube.com/watch?v=aAVvBN4LmPU)
+[![Guarda il tutorial su YouTube](https://img.youtube.com/vi/ChwVWax0YPY/0.jpg)](https://www.youtube.com/watch?v=ChwVWax0YPY)
 
 # Nmap Vuln Scan Pro
 
